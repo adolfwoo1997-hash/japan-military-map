@@ -1,0 +1,1620 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>日本军事基地分布地图 · JAPAN MILITARY BASES</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* 参考图配色：深蓝灰军事风 */
+      --bg-header:  #0d1b2a;
+      --bg-panel:   #111d2e;
+      --bg-panel2:  #0f1a28;
+      --bg-detail:  #111d2e;
+      --bg-row:     rgba(255,255,255,0.03);
+      --border:     rgba(255,255,255,0.08);
+      --border-hi:  rgba(255,255,255,0.18);
+
+      --text-h:     #e8f0f8;
+      --text-b:     #c8d8e8;
+      --text-s:     #7a9ab8;
+      --text-m:     #4a6480;
+
+      /* 强调色：参考图顶部数字用各自颜色 */
+      --c-usfj:    #e05555;
+      --c-jgsdf:   #3dba6e;
+      --c-jmsdf:   #4a8fd4;
+      --c-jasdf:   #d4a030;
+      --c-missile: #d47830;
+      --c-radar:   #9060c8;
+      --c-nuclear: #30b8b8;
+      --c-all:     #3dba6e;
+
+      --header-h: 50px;
+      --panel-w:  210px;
+      --detail-w: 310px;
+    }
+
+    html, body {
+      height: 100%; overflow: hidden;
+      background: #0a1520;
+      color: var(--text-b);
+      font-family: 'Noto Serif SC', 'SimSun', '宋体', serif;
+      font-size: 13px;
+    }
+
+    /* ===== HEADER ===== */
+    #header {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: var(--header-h);
+      background: var(--bg-header);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 14px;
+      z-index: 1000;
+    }
+
+    #hd-left { display: flex; align-items: center; gap: 10px; }
+
+    #hd-icon {
+      width: 30px; height: 30px;
+      background: rgba(61,186,110,0.15);
+      border: 1px solid rgba(61,186,110,0.35);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+
+    #hd-titles { display: flex; flex-direction: column; gap: 2px; }
+
+    #hd-titles .t1 {
+      font-size: 15px; font-weight: 700;
+      color: var(--text-h); letter-spacing: 0.5px;
+    }
+
+    #hd-titles .t2 {
+      font-size: 9px; color: var(--text-m);
+      font-family: 'Share Tech Mono', monospace;
+      letter-spacing: 1.5px;
+    }
+
+    #hd-right { display: flex; align-items: center; gap: 2px; }
+
+    .hd-stat {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 5px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s;
+      min-width: 56px;
+    }
+    .hd-stat:hover { background: rgba(255,255,255,0.06); }
+    .hd-stat .n {
+      font-size: 18px; font-weight: 700; line-height: 1;
+      font-family: 'Share Tech Mono', monospace;
+    }
+    .hd-stat .l {
+      font-size: 8px; margin-top: 2px;
+      font-family: 'Share Tech Mono', monospace;
+      letter-spacing: 0.5px; opacity: 0.75;
+    }
+    .hd-stat.s-usfj  .n, .hd-stat.s-usfj  .l { color: var(--c-usfj); }
+    .hd-stat.s-jgsdf .n, .hd-stat.s-jgsdf .l { color: var(--c-jgsdf); }
+    .hd-stat.s-jmsdf .n, .hd-stat.s-jmsdf .l { color: var(--c-jmsdf); }
+    .hd-stat.s-jasdf .n, .hd-stat.s-jasdf .l { color: var(--c-jasdf); }
+    .hd-stat.s-total .n { color: var(--text-h); }
+    .hd-stat.s-total .l { color: var(--text-s); }
+
+    .hd-div { width: 1px; height: 26px; background: var(--border); margin: 0 4px; }
+
+    #hd-search {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 14px;
+      background: rgba(61,186,110,0.12);
+      border: 1px solid rgba(61,186,110,0.30);
+      border-radius: 20px;
+      color: var(--c-jgsdf);
+      font-size: 12px; cursor: pointer;
+      font-family: 'Noto Serif SC', serif;
+      transition: all 0.2s;
+      margin-left: 6px;
+    }
+    #hd-search:hover { background: rgba(61,186,110,0.22); border-color: rgba(61,186,110,0.55); }
+
+    /* ===== MAP ===== */
+    #map {
+      position: fixed;
+      top: var(--header-h); left: 0; right: 0; bottom: 0;
+      z-index: 1;
+    }
+    .leaflet-tile-pane { filter: brightness(0.72) saturate(0.45) contrast(1.05); }
+
+    /* ===== LEFT PANEL ===== */
+    #left-panel {
+      position: fixed;
+      top: calc(var(--header-h) + 14px);
+      left: 14px;
+      width: var(--panel-w);
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      z-index: 500;
+      overflow: hidden;
+    }
+
+    #lp-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px 8px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer; user-select: none;
+    }
+    #lp-header span {
+      font-size: 11px; color: var(--text-s);
+      letter-spacing: 1px;
+    }
+    #lp-toggle { font-size: 10px; color: var(--text-m); transition: transform 0.2s; }
+    #lp-toggle.closed { transform: rotate(-90deg); }
+
+    #lp-body { padding: 8px; }
+
+    /* 参考图：每个按钮是宽矩形，左侧彩色圆点，右侧数字 */
+    .fp-btn {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; padding: 9px 12px;
+      margin-bottom: 5px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer; transition: all 0.18s;
+      font-family: 'Noto Serif SC', serif;
+      font-size: 12px;
+    }
+    .fp-btn:last-child { margin-bottom: 0; }
+    .fp-btn:hover { background: rgba(255,255,255,0.08); border-color: var(--border-hi); }
+    .fp-btn.active { border-color: var(--border-hi); background: rgba(255,255,255,0.07); }
+
+    .fp-left { display: flex; align-items: center; gap: 9px; }
+    .fp-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .fp-name { color: var(--text-b); }
+    .fp-count {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 13px; font-weight: 700;
+    }
+
+    .fp-btn.fb-all   .fp-dot { background: var(--c-jgsdf); }
+    .fp-btn.fb-all   .fp-count { color: var(--c-jgsdf); }
+    .fp-btn.fb-usfj  .fp-dot { background: var(--c-usfj); }
+    .fp-btn.fb-usfj  .fp-count { color: var(--c-usfj); }
+    .fp-btn.fb-jgsdf .fp-dot { background: var(--c-jgsdf); }
+    .fp-btn.fb-jgsdf .fp-count { color: var(--c-jgsdf); }
+    .fp-btn.fb-jmsdf .fp-dot { background: var(--c-jmsdf); }
+    .fp-btn.fb-jmsdf .fp-count { color: var(--c-jmsdf); }
+    .fp-btn.fb-jasdf .fp-dot { background: var(--c-jasdf); }
+    .fp-btn.fb-jasdf .fp-count { color: var(--c-jasdf); }
+    .fp-btn.fb-missile .fp-dot { background: var(--c-missile); }
+    .fp-btn.fb-missile .fp-count { color: var(--c-missile); }
+    .fp-btn.fb-radar .fp-dot { background: var(--c-radar); }
+    .fp-btn.fb-radar .fp-count { color: var(--c-radar); }
+    .fp-btn.fb-nuclear .fp-dot { background: var(--c-nuclear); }
+    .fp-btn.fb-nuclear .fp-count { color: var(--c-nuclear); }
+
+    .fp-sep {
+      font-size: 10px; color: var(--text-m);
+      padding: 6px 4px 3px; letter-spacing: 1px;
+    }
+
+    /* 图例提示 */
+    #lp-hint {
+      padding: 8px 12px 10px;
+      border-top: 1px solid var(--border);
+      font-size: 10px; color: var(--text-m);
+      text-align: center; line-height: 1.6;
+    }
+
+    /* ===== RIGHT DETAIL PANEL ===== */
+    #detail-panel {
+      position: fixed;
+      top: var(--header-h); right: 0;
+      width: var(--detail-w);
+      height: calc(100vh - var(--header-h));
+      background: var(--bg-detail);
+      border-left: 1px solid var(--border);
+      z-index: 500;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #detail-panel.visible { display: flex; }
+
+    #dp-head {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    #dp-close {
+      position: absolute; top: 12px; right: 12px;
+      width: 24px; height: 24px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-s); font-size: 13px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s;
+    }
+    #dp-close:hover { background: rgba(255,255,255,0.12); color: var(--text-h); }
+
+    #dp-name {
+      font-size: 16px; font-weight: 700;
+      color: var(--text-h); line-height: 1.3;
+      padding-right: 32px; margin-bottom: 3px;
+    }
+    #dp-name-sub {
+      font-size: 10px; color: var(--text-m);
+      font-family: 'Share Tech Mono', monospace;
+      margin-bottom: 8px;
+    }
+
+    #dp-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 3px 10px; border-radius: 3px;
+      font-size: 11px; border: 1px solid;
+      font-family: 'Noto Serif SC', serif;
+    }
+    #dp-tag .tag-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+    #dp-body {
+      flex: 1; overflow-y: auto;
+      padding: 14px 16px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.1) transparent;
+    }
+    #dp-body::-webkit-scrollbar { width: 4px; }
+    #dp-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    .dp-section { margin-bottom: 18px; }
+
+    .dp-sec-title {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--text-s);
+      margin-bottom: 10px; letter-spacing: 1px;
+    }
+    .dp-sec-title::before {
+      content: '◆'; font-size: 8px;
+      color: var(--text-m);
+    }
+
+    /* 坐标块 */
+    .coord-row {
+      display: flex; gap: 8px; margin-bottom: 6px;
+    }
+    .coord-box {
+      flex: 1; padding: 8px 10px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+    }
+    .coord-lbl {
+      font-size: 9px; color: var(--text-m);
+      font-family: 'Share Tech Mono', monospace;
+      letter-spacing: 1px; margin-bottom: 3px;
+    }
+    .coord-val {
+      font-size: 14px; font-weight: 600;
+      font-family: 'Share Tech Mono', monospace;
+      color: var(--text-h);
+    }
+    .coord-src {
+      font-size: 9px; color: var(--text-m);
+      margin-top: 4px; font-style: italic;
+    }
+
+    /* 地图链接 */
+    .map-btns { display: flex; gap: 6px; margin-top: 8px; }
+    .map-btn {
+      flex: 1; padding: 7px 8px;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+      border-radius: 5px; font-size: 11px;
+      text-decoration: none; cursor: pointer;
+      font-family: 'Noto Serif SC', serif;
+      transition: all 0.15s;
+      border: 1px solid;
+    }
+    .map-btn.gmap {
+      background: rgba(66,133,244,0.12);
+      border-color: rgba(66,133,244,0.35);
+      color: #6aa3f5;
+    }
+    .map-btn.gmap:hover { background: rgba(66,133,244,0.22); }
+    .map-btn.osm {
+      background: rgba(61,186,110,0.12);
+      border-color: rgba(61,186,110,0.35);
+      color: var(--c-jgsdf);
+    }
+    .map-btn.osm:hover { background: rgba(61,186,110,0.22); }
+
+    /* 情报表格 */
+    .info-tbl { width: 100%; border-collapse: collapse; }
+    .info-tbl tr { border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .info-tbl tr:last-child { border-bottom: none; }
+    .info-tbl td { padding: 7px 0; vertical-align: top; font-size: 12px; line-height: 1.55; }
+    .info-tbl td:first-child {
+      width: 68px; flex-shrink: 0;
+      color: var(--text-m); font-size: 11px;
+      padding-right: 8px;
+    }
+    .info-tbl td:last-child { color: var(--text-b); }
+
+    /* 参考资料 */
+    .ref-a {
+      display: block; font-size: 10px;
+      color: var(--text-m); text-decoration: none;
+      padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+      word-break: break-all; line-height: 1.4;
+      transition: color 0.15s;
+    }
+    .ref-a:last-child { border-bottom: none; }
+    .ref-a:hover { color: var(--c-jgsdf); }
+
+    /* ===== SEARCH OVERLAY ===== */
+    #search-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 2000; display: none;
+      align-items: flex-start; justify-content: center;
+      padding-top: 80px;
+      backdrop-filter: blur(4px);
+    }
+    #search-overlay.visible { display: flex; }
+
+    #search-box {
+      width: 560px; max-width: 90vw;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-hi);
+      border-radius: 8px; overflow: hidden;
+    }
+    #search-wrap {
+      display: flex; align-items: center;
+      padding: 13px 16px; gap: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    #search-wrap span { color: var(--c-jgsdf); font-size: 14px; }
+    #search-input {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--text-h); font-size: 14px;
+      font-family: 'Noto Serif SC', serif;
+    }
+    #search-input::placeholder { color: var(--text-m); }
+    #search-results {
+      max-height: 400px; overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.1) transparent;
+    }
+    .sr-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px; cursor: pointer;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.12s;
+    }
+    .sr-item:hover { background: rgba(255,255,255,0.05); }
+    .sr-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .sr-name { flex: 1; font-size: 13px; color: var(--text-b); }
+    .sr-cat { font-size: 10px; color: var(--text-m); font-family: 'Share Tech Mono', monospace; }
+    .sr-empty { padding: 24px; text-align: center; color: var(--text-m); font-size: 12px; }
+
+    /* ===== FOOTER ===== */
+    #footer {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 4px 16px;
+      background: rgba(10,20,35,0.90);
+      border-top: 1px solid var(--border);
+      font-size: 10px; color: var(--text-m);
+      z-index: 500;
+      display: flex; justify-content: space-between; align-items: center;
+      font-family: 'Noto Serif SC', serif;
+      letter-spacing: 0.3px;
+    }
+    #footer .author {
+      color: var(--text-s); font-weight: 600;
+      font-size: 11px; letter-spacing: 0.5px;
+    }
+
+    /* ===== DISPLAY COUNT ===== */
+    #disp-count {
+      position: fixed; bottom: 26px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10,20,35,0.88);
+      border: 1px solid var(--border);
+      border-radius: 20px; padding: 3px 14px;
+      font-size: 11px; color: var(--text-s);
+      font-family: 'Share Tech Mono', monospace;
+      z-index: 500; pointer-events: none; letter-spacing: 1px;
+    }
+
+    /* ===== LOADING ===== */
+    #loading {
+      position: fixed; inset: 0;
+      background: #0a1520;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 9999; gap: 14px;
+    }
+    #loading .lt { font-size: 16px; font-weight: 600; color: var(--text-h); letter-spacing: 3px; }
+    #loading .ls { font-size: 10px; color: var(--text-m); font-family: 'Share Tech Mono', monospace; letter-spacing: 2px; }
+    .lbar { width: 180px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
+    .lbar-i { height: 100%; background: var(--c-jgsdf); animation: lani 1.5s ease-in-out infinite; }
+    @keyframes lani {
+      0%   { width: 0%;  margin-left: 0; }
+      50%  { width: 60%; margin-left: 20%; }
+      100% { width: 0%;  margin-left: 100%; }
+    }
+
+    /* ===== CATEGORY TAG COLORS ===== */
+    .tag-usfj    { color: var(--c-usfj);    border-color: rgba(224,85,85,0.4);   background: rgba(224,85,85,0.10); }
+    .tag-jgsdf   { color: var(--c-jgsdf);   border-color: rgba(61,186,110,0.4);  background: rgba(61,186,110,0.10); }
+    .tag-jmsdf   { color: var(--c-jmsdf);   border-color: rgba(74,143,212,0.4);  background: rgba(74,143,212,0.10); }
+    .tag-jasdf   { color: var(--c-jasdf);   border-color: rgba(212,160,48,0.4);  background: rgba(212,160,48,0.10); }
+    .tag-missile { color: var(--c-missile); border-color: rgba(212,120,48,0.4);  background: rgba(212,120,48,0.10); }
+    .tag-radar   { color: var(--c-radar);   border-color: rgba(144,96,200,0.4);  background: rgba(144,96,200,0.10); }
+    .tag-nuclear { color: var(--c-nuclear); border-color: rgba(48,184,184,0.4);  background: rgba(48,184,184,0.10); }
+
+    /* ===== 12式岸舰导弹高亮标记 ===== */
+    .ssm12-ring {
+      pointer-events: none;
+    }
+    /* 12式图层切换按钮 */
+    .fp-btn.fb-ssm12 .fp-dot { background: #ff2a2a; box-shadow: 0 0 6px #ff2a2a; }
+    .fp-btn.fb-ssm12 .fp-count { color: #ff2a2a; }
+    .fp-btn.fb-ssm12.active {
+      border-color: rgba(255,42,42,0.55);
+      background: rgba(255,42,42,0.10);
+    }
+    /* 详情面板12式标签 */
+    .tag-ssm12 { color: #ff2a2a; border-color: rgba(255,42,42,0.45); background: rgba(255,42,42,0.12); }
+    /* 12式图例说明 */
+    #ssm12-legend {
+      margin: 8px 8px 0;
+      padding: 8px 10px;
+      background: rgba(255,42,42,0.08);
+      border: 1px solid rgba(255,42,42,0.28);
+      border-radius: 5px;
+      font-size: 10px;
+      color: rgba(255,120,120,0.9);
+      line-height: 1.6;
+      display: none;
+    }
+    .range-legend { display:none; margin:6px 8px 4px; padding:8px; background:rgba(0,0,0,0.3); border-radius:4px; border:1px solid rgba(255,255,255,0.08); font-size:11px; color:#aaa; line-height:1.6; }
+  .range-legend.visible { display:block; }
+  .rleg-row { display:flex; align-items:center; gap:6px; margin-top:3px; }
+  .rleg-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .range-tooltip { background:#0d1b2a; border:1px solid #2a4060; color:#c8d8e8; font-family:'Noto Serif SC',serif; font-size:12px; padding:6px 10px; border-radius:4px; }
+  .fb-ssm25 .fp-dot { background:#ff6600; }
+  .fb-ssm25.active { background:rgba(255,102,0,0.18); border-color:rgba(255,102,0,0.5); }
+  .fb-ssm25.active .fp-count { color:#ff6600; }
+  .fb-tomahawk .fp-dot { background:#00cfff; }
+  .fb-tomahawk.active { background:rgba(0,207,255,0.18); border-color:rgba(0,207,255,0.5); }
+  .fb-tomahawk.active .fp-count { color:#00cfff; }
+  /* HVGP 高速滑翔弹 */
+  .fb-hvgp .fp-dot { background:#b060ff; box-shadow:0 0 6px #b060ff; }
+  .fb-hvgp.active { background:rgba(176,96,255,0.18); border-color:rgba(176,96,255,0.5); }
+  .fb-hvgp.active .fp-count { color:#b060ff; }
+  .tag-hvgp { color:#b060ff; border-color:rgba(176,96,255,0.45); background:rgba(176,96,255,0.12); }
+  #hvgp-legend { margin:8px 8px 0; padding:8px 10px; background:rgba(176,96,255,0.08); border:1px solid rgba(176,96,255,0.28); border-radius:5px; font-size:10px; color:rgba(200,160,255,0.9); line-height:1.6; display:none; }
+  #hvgp-legend.visible { display:block; }
+  #hvgp-legend .lg-title { font-size:11px; font-weight:600; color:#c080ff; margin-bottom:4px; }
+  .hvgp-marker-deployed { filter: drop-shadow(0 0 6px #b060ff); }
+  .hvgp-pulse-ring { animation: hvgppulse 2s ease-out infinite; }
+  @keyframes hvgppulse {
+    0%   { transform: scale(1);   opacity: 0.9; }
+    70%  { transform: scale(2.2); opacity: 0.2; }
+    100% { transform: scale(2.8); opacity: 0; }
+  }
+  #ssm12-legend.visible { display: block; }
+    #ssm12-legend .lg-title {
+      font-size: 11px; font-weight: 600;
+      color: #ff5555; margin-bottom: 4px;
+      display: flex; align-items: center; gap: 5px;
+    }
+
+    /* Leaflet zoom */
+    .leaflet-control-zoom { border: 1px solid var(--border) !important; }
+    .leaflet-control-zoom a {
+      background: var(--bg-panel) !important;
+      color: var(--text-s) !important;
+      border-bottom: 1px solid var(--border) !important;
+    }
+    .leaflet-control-zoom a:hover { background: var(--bg-panel2) !important; color: var(--text-h) !important; }
+    .leaflet-control-attribution { font-size: 9px !important; }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="lt">日本军事基地分布地图</div>
+  <div class="ls">LOADING OSINT DATA · 386 FACILITIES</div>
+  <div class="lbar"><div class="lbar-i"></div></div>
+</div>
+
+<!-- Header -->
+<div id="header">
+  <div id="hd-left">
+    <div id="hd-icon">🗾</div>
+    <div id="hd-titles">
+      <div class="t1">日本军事基地分布地图</div>
+      <div class="t2">JAPAN MILITARY BASES — OPEN SOURCE INTELLIGENCE · 386 FACILITIES</div>
+    </div>
+  </div>
+  <div id="hd-right">
+    <div class="hd-stat s-usfj" onclick="filterCategory('USFJ')" title="驻日美军">
+      <span class="n" id="stat-usfj">57</span><span class="l">USFJ</span>
+    </div>
+    <div class="hd-stat s-jgsdf" onclick="filterCategory('JGSDF')" title="陆上自卫队">
+      <span class="n" id="stat-jgsdf">156</span><span class="l">JGSDF</span>
+    </div>
+    <div class="hd-stat s-jmsdf" onclick="filterCategory('JMSDF')" title="海上自卫队">
+      <span class="n" id="stat-jmsdf">47</span><span class="l">JMSDF</span>
+    </div>
+    <div class="hd-stat s-jasdf" onclick="filterCategory('JASDF')" title="航空自卫队">
+      <span class="n" id="stat-jasdf">57</span><span class="l">JASDF</span>
+    </div>
+    <div class="hd-div"></div>
+    <div class="hd-stat s-total" onclick="filterCategory('ALL')" title="全部显示">
+      <span class="n" id="stat-display">386</span><span class="l">显示中</span>
+    </div>
+    <div class="hd-div"></div>
+    <button id="hd-search" onclick="openSearch()">● 搜索</button>
+  </div>
+</div>
+
+<!-- Map -->
+<div id="map"></div>
+
+<!-- Left Panel -->
+<div id="left-panel">
+  <div id="lp-header" onclick="togglePanel()">
+    <span>▼ 图层筛选</span>
+    <span id="lp-toggle">▼</span>
+  </div>
+  <div id="lp-body">
+    <button class="fp-btn fb-all active" onclick="filterCategory('ALL')">
+      <div class="fp-left"><span class="fp-dot"></span><span class="fp-name">全部显示</span></div>
+      <span class="fp-count" id="cnt-all">386</span>
+    </button>
+
+    <div class="fp-sep">— 驻日美军 —</div>
+    <button class="fp-btn fb-usfj" onclick="filterCategory('USFJ')">
+      <div class="fp-left"><span class="fp-dot"></span><span class="fp-name">驻日美军 USFJ</span></div>
+      <span class="fp-count">57</span>
+    </button>
+
+    <div class="fp-sep">— 自卫队 —</div>
+    <button class="fp-btn fb-jgsdf" onclick="filterCategory('JGSDF')">
+      <div class="fp-left"><span class="fp-dot"></span><span class="fp-name">陆上自卫队 JGSDF</span></div>
+      <span class="fp-count">156</span>
+    </button>
+    <button class="fp-btn fb-jmsdf" onclick="filterCategory('JMSDF')">
+      <div class="fp-left"><span class="fp-dot"></span><span class="fp-name">海上自卫队 JMSDF</span></div>
+      <span class="fp-count">47</span>
+    </button>
+    <button class="fp-btn fb-jasdf" onclick="filterCategory('JASDF')">
+      <div class="fp-left"><span class="fp-dot"></span><span class="fp-name">航空自卫队 JASDF</span></div>
+      <span class="fp-count">57</span>
+    </button>
+
+    <div class="fp-sep">— 重点标记 —</div>
+    <button class="fp-btn fb-ssm12" onclick="toggleSSM12()" id="btn-ssm12">
+      <div class="fp-left"><span class="fp-dot"></span><span class="fp-name">12式岸舰导弹</span></div>
+      <span class="fp-count" id="cnt-ssm12">11</span>
+    </button>
+    <div id="ssm12-legend">
+      <div class="lg-title">⚠ 12式岸舰导弹（SSM-1B）</div>
+      射程约200km · 车载机动发射<br>
+      红色脉冲圆圈 = 已确认部署地点
+    </div>
+
+    <button class="fp-btn fb-ssm25" onclick="toggleRange('ssm25')" id="btn-ssm25">
+      <div class="fp-left"><span class="fp-dot"></span><span class="fp-name">25式射程圈（1000/1500km）</span></div>
+      <span class="fp-count" id="cnt-ssm25">5</span>
+    </button>
+    <div id="ssm25-legend" class="range-legend">
+      <div class="lg-title">◎ 25式地对舰导弹（12式升级型）</div>
+      <div class="rleg-row"><span class="rleg-dot" style="background:#ff6600"></span>实线圈 = 1000km（现役射程）</div>
+      <div class="rleg-row"><span class="rleg-dot" style="background:#ffaa00"></span>虚线圈 = 1500km（目标射程）</div>
+    </div>
+    <button class="fp-btn fb-tomahawk" onclick="toggleRange('tomahawk')" id="btn-tomahawk">
+      <div class="fp-left"><span class="fp-dot"></span><span class="fp-name">战斧导弹射程圈（1600km）</span></div>
+      <span class="fp-count" id="cnt-tomahawk">3</span>
+    </button>
+    <div id="tomahawk-legend" class="range-legend">
+      <div class="lg-title">◎ 战斧巡航导弹（RGM-109 Block IV/V）</div>
+      <div class="rleg-row"><span class="rleg-dot" style="background:#00cfff"></span>实线圈 = 1600km（标称射程）</div>
+      <div class="rleg-row" style="font-size:10px;color:#aaa;margin-top:4px">母港：横须贺·舞鹤·佐世保</div>
+      <div class="rleg-row" style="font-size:10px;color:#aaa">改装中：ちょうかい(佐世保)→きりしま(横须贺)→みょうこう(舞鹤)→あたご(舞鹤)→はぐろ(佐世保)→あしがら(佐世保)→こんごう(佐世保)→まや(横须贺)</div>
+    </div>
+
+    <button class="fp-btn fb-hvgp" onclick="toggleHVGP()" id="btn-hvgp">
+      <div class="fp-left"><span class="fp-dot"></span><span class="fp-name">HVGP高速滑翔弹射程圈</span></div>
+      <span class="fp-count" id="cnt-hvgp">5</span>
+    </button>
+    <div id="hvgp-legend">
+      <div class="lg-title">◎ HVGP 岛屿防卫用高速滑翔弹（25式）</div>
+      <div class="rleg-row"><span class="rleg-dot" style="background:#b060ff"></span>实线圈 = 900km（Block 1射程）</div>
+      <div class="rleg-row"><span class="rleg-dot" style="background:#d090ff"></span>虚线圈 = 2000km（Block 2A目标）</div>
+      <div class="rleg-row"><span class="rleg-dot" style="background:#e8c0ff"></span>点线圈 = 3000km（Block 2B目标）</div>
+      <div class="rleg-row" style="margin-top:5px;font-size:10px;color:#aaa">紫色实心圆 = 已部署 · 紫色虚线圆 = 计划部署</div>
+    </div>
+
+    <div class="fp-sep">— 特殊设施 —</div>
+    <button class="fp-btn fb-missile" onclick="filterCategory('MISSILE')">
+      <div class="fp-left"><span class="fp-dot"></span><span class="fp-name">导弹部队</span></div>
+      <span class="fp-count" id="cnt-missile">19</span>
+    </button>
+    <button class="fp-btn fb-radar" onclick="filterCategory('RADAR')">
+      <div class="fp-left"><span class="fp-dot"></span><span class="fp-name">重要雷达设施</span></div>
+      <span class="fp-count" id="cnt-radar">16</span>
+    </button>
+    <button class="fp-btn fb-nuclear" onclick="filterCategory('NUCLEAR')">
+      <div class="fp-left"><span class="fp-dot"></span><span class="fp-name">核设施</span></div>
+      <span class="fp-count" id="cnt-nuclear">34</span>
+    </button>
+  </div>
+  <div id="lp-hint">💡 点击地图标记<br>查看完整基地情报</div>
+</div>
+
+<!-- Detail Panel -->
+<div id="detail-panel">
+  <div id="dp-head">
+    <button id="dp-close" onclick="closeDetail()">✕</button>
+    <div id="dp-name">—</div>
+    <div id="dp-name-sub"></div>
+    <div id="dp-tag" class="tag-jgsdf">
+      <span class="tag-dot" style="background:var(--c-jgsdf)"></span>
+      <span id="dp-tag-text">—</span>
+    </div>
+  </div>
+  <div id="dp-body"></div>
+</div>
+
+<!-- Search Overlay -->
+<div id="search-overlay" onclick="closeSearchOnBg(event)">
+  <div id="search-box">
+    <div id="search-wrap">
+      <span>🔍</span>
+      <input id="search-input" type="text" placeholder="搜索基地名称、地点、功能..." oninput="doSearch(this.value)" />
+    </div>
+    <div id="search-results"></div>
+  </div>
+</div>
+
+<!-- Display Count -->
+<div id="disp-count">386 显示中</div>
+
+<!-- Footer -->
+<div id="footer">
+  <span>数据来源：日本防卫省 · 美军官方网站 · 维基百科 · IAEA · NRA — 仅含公开情报（OSINT）&nbsp;&nbsp;|&nbsp;&nbsp;数据截至 2026年04月</span>
+  <span class="author">制作者：李渤瀚</span>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ========== STATE ==========
+let allData = null;
+let allMarkers = [];
+let currentFilter = 'ALL';
+let map = null;
+let ssm12Layer = null;
+let ssm12Visible = false;
+let rangeCircles = { ssm25: null, tomahawk: null, hvgp: null };
+let rangeVisible = { ssm25: false, tomahawk: false, hvgp: false };
+let hvgpLayer = null;
+let hvgpVisible = false;
+
+// ========== 12式岸舰导弹部署地点 ==========
+// 数据来源：日本防卫省公开资料 + Wikipedia + 新闻报道（截至2026年4月）
+const SSM12_SITES = [
+  {
+    name: '北千岁驻屯地',
+    regiment: '第1地对舰导弹连队',
+    lat: 42.8833, lng: 141.6833,
+    note: '北部方面队第1特科团，装备12式岸舰导弹，防御日本海方向'
+  },
+  {
+    name: '美唄驻屯地',
+    regiment: '第2地对舰导弹连队',
+    lat: 43.3333, lng: 141.8500,
+    note: '北部方面队第1特科团，装备12式岸舰导弹，防御日本海方向'
+  },
+  {
+    name: '上富良野驻屯地',
+    regiment: '第3地对舰导弹连队',
+    lat: 43.4500, lng: 142.4667,
+    note: '北部方面队第1特科团，装备12式岸舰导弹；同时为12式能力提升型（25式）计划配备地'
+  },
+  {
+    name: '八户驻屯地',
+    regiment: '第4地对舰导弹连队',
+    lat: 40.5167, lng: 141.4833,
+    note: '东北方面队，装备12式岸舰导弹，2025年扩编至3个射击中队'
+  },
+  {
+    name: '健军驻屯地',
+    regiment: '第5地对舰导弹连队',
+    lat: 32.8167, lng: 130.7667,
+    note: '西部方面队第2特科团，装备12式岸舰导弹（16辆）；2026年3月31日起同时配备25式地对舰导弹（射程约1000km）'
+  },
+  {
+    name: '勝連分屯地',
+    regiment: '第7地对舰导弹连队（连队本部）',
+    lat: 26.3167, lng: 127.8667,
+    note: '西部方面队，装备12式岸舰导弹（16辆），下辖4个中队分散部署于冲绳岛链'
+  },
+  {
+    name: '瀬戸内分屯地（奄美大岛）',
+    regiment: '第7连队第1中队',
+    lat: 28.3667, lng: 129.5000,
+    note: '奄美大岛，装备12式岸舰导弹4辆，扼守宫古海峡北侧'
+  },
+  {
+    name: '宮古島驻屯地',
+    regiment: '第7连队第2中队',
+    lat: 24.8000, lng: 125.2833,
+    note: '宫古岛，装备12式岸舰导弹4辆，扼守宫古海峡'
+  },
+  {
+    name: '石垣島驻屯地',
+    regiment: '第7连队第3中队',
+    lat: 24.3667, lng: 124.1667,
+    note: '石垣岛，装备12式岸舰导弹4辆，扼守巴士海峡北侧'
+  },
+  {
+    name: '湯布院驻屯地',
+    regiment: '第8地对舰导弹连队',
+    lat: 33.2333, lng: 131.3667,
+    note: '西部方面队，2025年3月新编，装备12式岸舰导弹8辆，部署于大分县'
+  },
+  {
+    name: '富士驻屯地（特科教导队）',
+    regiment: '特科教导队第6射击中队',
+    lat: 35.3667, lng: 138.7833,
+    note: '富士教导团，装备12式岸舰导弹4辆（部队育成用）；2026年同时配备岛屿防卫用高速滑翔弹'
+  }
+];
+
+const CAT = {
+  USFJ:    { color: '#e05555', label: '驻日美军 USFJ',    labelEn: 'USFJ' },
+  JGSDF:   { color: '#3dba6e', label: '陆上自卫队 JGSDF', labelEn: 'JGSDF' },
+  JMSDF:   { color: '#4a8fd4', label: '海上自卫队 JMSDF', labelEn: 'JMSDF' },
+  JASDF:   { color: '#d4a030', label: '航空自卫队 JASDF', labelEn: 'JASDF' },
+  MISSILE: { color: '#d47830', label: '导弹部队',          labelEn: 'MISSILE' },
+  RADAR:   { color: '#9060c8', label: '重要雷达设施',      labelEn: 'RADAR' },
+  NUCLEAR: { color: '#30b8b8', label: '核设施',            labelEn: 'NUCLEAR' },
+};
+
+// ========== 25式地对舰导弹部署地点（已配备/计划配备）==========
+// 数据来源：防卫省公开资料 + 共同社 + 新闻报道（截至2026年4月）
+const SSM25_SITES = [
+  {
+    name: '健军驻屯地（第5地对舰导弹连队）',
+    regiment: '第5地对舰导弹连队',
+    lat: 32.8167, lng: 130.7667,
+    status: '已部署',
+    note: '2026年3月31日起首批配备25式（射程约1000km），同时保留12式'
+  },
+  {
+    name: '上富良野驻屯地（第3地对舰导弹连队）',
+    regiment: '第3地对舰导弹连队',
+    lat: 43.4500, lng: 142.4667,
+    status: '计划配备',
+    note: '北部方面队，计划配备25式，兼顾日本海与鄂霍次克海方向'
+  },
+  {
+    name: '勝連分屯地（第7连队本部）',
+    regiment: '第7地对舰导弹连队',
+    lat: 26.3167, lng: 127.8667,
+    status: '计划配备',
+    note: '冲绳链岛，计划配备25式，覆盖南海及台湾海峡方向'
+  },
+  {
+    name: '八户驻屯地（第4地对舰导弹连队）',
+    regiment: '第4地对舰导弹连队',
+    lat: 40.5167, lng: 141.4833,
+    status: '计划配备',
+    note: '东北方面队，计划配备25式，覆盖日本海及太平洋方向'
+  },
+  {
+    name: '富士驻屯地（特科教导队）',
+    regiment: '特科教导队第6射击中队',
+    lat: 35.3667, lng: 138.7833,
+    status: '计划配备',
+    note: '2026年同时配备岛屿防卫用高速滑翔弹，25式计划配备'
+  }
+];
+
+// ========== 战斧导弹部署母港 ==========
+// 数据来源：Yahoo!ニュース 2025/8/30 · NavalNews 2026/3/31 · Stars and Stripes 2026/4/13
+// 8艘宙斯盾驱逐舰分布于横须贺、舞鹤、佐世保三个母港
+const TOMAHAWK_BASES = [
+  {
+    name: '横须贺基地（JMSDF Yokosuka）',
+    port: '横须贺',
+    lat: 35.2833, lng: 139.6667,
+    ships: 'DDG-174 きりしま（2027年前改装）· DDG-179 まや（计划改装）',
+    note: '横须贺为海自最大基地，停泊金刚级2番舰「きりしま」和摩耶级1番舰「まや」'
+  },
+  {
+    name: '舞鹤基地（JMSDF Maizuru）',
+    port: '舞鹤',
+    lat: 35.4667, lng: 135.3833,
+    ships: 'DDG-175 みょうこう（2026年度改装）· DDG-177 あたご（2026年度改装）',
+    note: '舞鹤基地停泊金刚级3番舰「みょうこう」和爱宕级1番舰「あたご」，均为2026年度改装对象'
+  },
+  {
+    name: '佐世保基地（JMSDF Sasebo）',
+    port: '佐世保',
+    lat: 33.1500, lng: 129.7167,
+    ships: 'DDG-173 こんごう · DDG-176 ちょうかい（首舰，已完成改装）· DDG-178 あしがら · DDG-180 はぐろ（2025年度改装）',
+    note: '佐世保为战斧改装重点基地，「ちょうかい」已于2026年3月完成改装，为日本首艘战斧舰'
+  }
+];
+
+// ========== HVGP 岛屿防卫用高速滑翔弹部署地点 ==========
+// 数据来源：防卫省公开资料 + 共同社 + 红山动态 + NavalNews + USNI（截至2026年4月）
+const HVGP_SITES = [
+  {
+    name: '富士驻屯地（特科教导队）',
+    unit: '特科教导团 第6射击中队',
+    lat: 35.3667, lng: 138.7833,
+    status: '已部署',
+    block: 'Block 1',
+    deploy_date: '2026年3月31日',
+    note: '日本首批HVGP（25式高速滑空弹Block 1）部署地，交付特科教导部队研究运用方法，同时配备岛屿防卫用高速滑翔弹早期装备型，射程数百公里（标称900km）。'
+  },
+  {
+    name: '上富良野驻屯地',
+    unit: '第3地对舰导弹连队（兼配HVGP）',
+    lat: 43.4500, lng: 142.4667,
+    status: '2026年度内计划部署',
+    block: 'Block 1',
+    deploy_date: '2026年度内（FY2026）',
+    note: '北海道上富良野，北部方面队，防卫省宣布2026年度内部署Block 1型HVGP，覆盖日本海及鄂霍次克海方向。'
+  },
+  {
+    name: '虾野驻屯地',
+    unit: '西部方面特科连队（计划）',
+    lat: 31.9333, lng: 130.8167,
+    status: '2026年度内计划部署',
+    block: 'Block 1',
+    deploy_date: '2026年度内（FY2026）',
+    note: '宫崎县虾野，西部方面队，防卫省宣布2026年度内部署Block 1型HVGP，覆盖东海南部及西南诸岛方向。'
+  },
+  {
+    name: '勝連分屯地（冲绳）',
+    unit: '第7地对舰导弹连队（Block 2计划）',
+    lat: 26.3167, lng: 127.8667,
+    status: '未来计划（Block 2）',
+    block: 'Block 2（2030年代）',
+    deploy_date: '2030年代',
+    note: '冲绳链岛，西南诸岛防卫重点，计划部署Block 2型HVGP（射程2000-3000km），覆盖台湾海峡、南海及中国东南沿海纵深目标。'
+  },
+  {
+    name: '北千岁驻屯地',
+    unit: '第1地对舰导弹连队（Block 2计划）',
+    lat: 42.8833, lng: 141.6833,
+    status: '未来计划（Block 2）',
+    block: 'Block 2（2030年代）',
+    deploy_date: '2030年代',
+    note: '北海道北千岁，北部方面队，计划部署Block 2型HVGP，覆盖俄罗斯远东及朝鲜半岛纵深目标。'
+  }
+];
+
+// ========== 12式岸舰导弹图层 ==========
+function toggleSSM12() {
+  ssm12Visible = !ssm12Visible;
+  const btn = document.getElementById('btn-ssm12');
+  const legend = document.getElementById('ssm12-legend');
+  btn.classList.toggle('active', ssm12Visible);
+  legend.classList.toggle('visible', ssm12Visible);
+
+  if (ssm12Visible) {
+    renderSSM12Layer();
+  } else {
+    if (ssm12Layer) { ssm12Layer.forEach(l => map.removeLayer(l)); ssm12Layer = null; }
+  }
+}
+
+function renderSSM12Layer() {
+  if (ssm12Layer) { ssm12Layer.forEach(l => map.removeLayer(l)); }
+  ssm12Layer = [];
+
+  SSM12_SITES.forEach(site => {
+    // 外圈脉冲动画圆
+    const pulseIcon = L.divIcon({
+      className: 'ssm12-ring',
+      html: `<div style="
+        position:relative;
+        width:36px; height:36px;
+      ">
+        <div style="
+          position:absolute; inset:0;
+          border-radius:50%;
+          border: 2px solid rgba(255,42,42,0.85);
+          box-shadow: 0 0 10px rgba(255,42,42,0.6), inset 0 0 8px rgba(255,42,42,0.2);
+          animation: ssm12pulse 1.8s ease-out infinite;
+        "></div>
+        <div style="
+          position:absolute; top:50%; left:50%;
+          transform:translate(-50%,-50%);
+          width:10px; height:10px;
+          background:#ff2a2a;
+          border-radius:50%;
+          border:2px solid rgba(255,255,255,0.7);
+          box-shadow: 0 0 8px #ff2a2a;
+        "></div>
+      </div>`,
+      iconSize: [36, 36],
+      iconAnchor: [18, 18]
+    });
+
+    const m = L.marker([site.lat, site.lng], { icon: pulseIcon, zIndexOffset: 1000 });
+    m.on('click', () => showSSM12Detail(site));
+    m.addTo(map);
+    ssm12Layer.push(m);
+  });
+}
+
+function showSSM12Detail(site) {
+  document.getElementById('dp-name').textContent = site.name;
+  document.getElementById('dp-name-sub').textContent = site.regiment;
+
+  const tag = document.getElementById('dp-tag');
+  tag.className = 'tag-ssm12';
+  tag.querySelector('.tag-dot').style.background = '#ff2a2a';
+  document.getElementById('dp-tag-text').textContent = '12式岸舰导弹部署地';
+
+  let html = `<div class="dp-section">
+    <div class="dp-sec-title">地理坐标</div>
+    <div class="coord-row">
+      <div class="coord-box"><div class="coord-lbl">LAT</div><div class="coord-val">${site.lat.toFixed(4)}°N</div></div>
+      <div class="coord-box"><div class="coord-lbl">LNG</div><div class="coord-val">${site.lng.toFixed(4)}°E</div></div>
+    </div>
+    <div class="map-btns">
+      <a class="map-btn gmap" href="https://www.google.com/maps?q=${site.lat},${site.lng}" target="_blank">🗺 Google Maps</a>
+      <a class="map-btn osm" href="https://www.openstreetmap.org/?mlat=${site.lat}&mlon=${site.lng}&zoom=13" target="_blank">🌐 OpenStreetMap</a>
+    </div>
+  </div>`;
+
+  html += `<div class="dp-section">
+    <div class="dp-sec-title">导弹部署情报</div>
+    <table class="info-tbl">
+      <tr><td>驻屯地</td><td>${site.name}</td></tr>
+      <tr><td>连队番号</td><td>${site.regiment}</td></tr>
+      <tr><td>导弹型号</td><td>12式地对舰诱导弹（SSM-1B）</td></tr>
+      <tr><td>射程</td><td>约200km</td></tr>
+      <tr><td>发射方式</td><td>车载机动发射（重装轮车辆）</td></tr>
+      <tr><td>备注</td><td>${site.note}</td></tr>
+    </table>
+  </div>`;
+
+  document.getElementById('dp-body').innerHTML = html;
+  document.getElementById('detail-panel').classList.add('visible');
+  map.flyTo([site.lat, site.lng], Math.max(map.getZoom(), 10), { duration: 0.7 });
+}
+
+// ========== HVGP 高速滑翔弹图层 ==========
+function toggleHVGP() {
+  hvgpVisible = !hvgpVisible;
+  const btn = document.getElementById('btn-hvgp');
+  const legend = document.getElementById('hvgp-legend');
+  btn.classList.toggle('active', hvgpVisible);
+  legend.classList.toggle('visible', hvgpVisible);
+
+  if (hvgpVisible) {
+    renderHVGPLayer();
+  } else {
+    if (hvgpLayer) { hvgpLayer.forEach(l => map.removeLayer(l)); hvgpLayer = null; }
+    if (rangeCircles.hvgp) { rangeCircles.hvgp.forEach(l => map.removeLayer(l)); rangeCircles.hvgp = null; }
+  }
+}
+
+function renderHVGPLayer() {
+  if (hvgpLayer) { hvgpLayer.forEach(l => map.removeLayer(l)); }
+  if (rangeCircles.hvgp) { rangeCircles.hvgp.forEach(l => map.removeLayer(l)); }
+  hvgpLayer = [];
+  rangeCircles.hvgp = [];
+
+  HVGP_SITES.forEach(site => {
+    const isDeployed = site.status === '已部署';
+    const isPlan1 = site.status.includes('2026');
+    const isBlock2 = site.block.includes('Block 2');
+
+    // 射程圈：Block 1 部署/计划地点均画900km实线圆
+    if (!isBlock2) {
+      const c1 = L.circle([site.lat, site.lng], {
+        radius: 900000,
+        color: '#b060ff',
+        weight: isDeployed ? 2.5 : 2,
+        opacity: isDeployed ? 0.9 : 0.7,
+        fillColor: '#b060ff',
+        fillOpacity: isDeployed ? 0.05 : 0.03,
+        dashArray: null
+      }).addTo(map);
+      c1.bindTooltip(`<b>${site.name}</b><br>HVGP Block 1 · 900km射程圈<br>${site.status}`, { sticky: true, className: 'range-tooltip' });
+      c1.on('click', () => showHVGPDetail(site));
+      rangeCircles.hvgp.push(c1);
+    }
+
+    // Block 2 计划地点画2000km虚线圆和3000km点线圆
+    if (isBlock2) {
+      const c2 = L.circle([site.lat, site.lng], {
+        radius: 2000000,
+        color: '#d090ff',
+        weight: 1.5,
+        opacity: 0.5,
+        fillColor: '#d090ff',
+        fillOpacity: 0.02,
+        dashArray: '8 6'
+      }).addTo(map);
+      c2.bindTooltip(`<b>${site.name}</b><br>HVGP Block 2A · 2000km目标射程圈<br>${site.status}`, { sticky: true, className: 'range-tooltip' });
+      c2.on('click', () => showHVGPDetail(site));
+      rangeCircles.hvgp.push(c2);
+
+      const c3 = L.circle([site.lat, site.lng], {
+        radius: 3000000,
+        color: '#e8c0ff',
+        weight: 1.5,
+        opacity: 0.4,
+        fillColor: '#e8c0ff',
+        fillOpacity: 0.01,
+        dashArray: '3 5'
+      }).addTo(map);
+      c3.bindTooltip(`<b>${site.name}</b><br>HVGP Block 2B · 3000km目标射程圈<br>${site.status}`, { sticky: true, className: 'range-tooltip' });
+      c3.on('click', () => showHVGPDetail(site));
+      rangeCircles.hvgp.push(c3);
+    }
+
+    // 中心标记：已部署=实心紫色脉冲圆，计划=空心紫色圆
+    const iconHtml = isDeployed
+      ? `<div style="position:relative;width:32px;height:32px">
+          <div style="position:absolute;inset:0;border-radius:50%;border:2px solid rgba(176,96,255,0.85);box-shadow:0 0 12px rgba(176,96,255,0.7),inset 0 0 8px rgba(176,96,255,0.2);" class="hvgp-pulse-ring"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:#b060ff;border-radius:50%;border:2px solid rgba(255,255,255,0.8);box-shadow:0 0 10px #b060ff"></div>
+        </div>`
+      : `<div style="position:relative;width:28px;height:28px">
+          <div style="position:absolute;inset:0;border-radius:50%;border:${isBlock2 ? '1.5px dashed' : '1.5px dashed'} rgba(176,96,255,0.7);box-shadow:0 0 6px rgba(176,96,255,0.3)"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;background:transparent;border-radius:50%;border:2px solid rgba(176,96,255,0.8)"></div>
+        </div>`;
+
+    const icon = L.divIcon({
+      className: '',
+      html: iconHtml,
+      iconSize: isDeployed ? [32, 32] : [28, 28],
+      iconAnchor: isDeployed ? [16, 16] : [14, 14]
+    });
+    const m = L.marker([site.lat, site.lng], { icon, zIndexOffset: 1200 });
+    m.on('click', () => showHVGPDetail(site));
+    m.addTo(map);
+    hvgpLayer.push(m);
+  });
+}
+
+function showHVGPDetail(site) {
+  document.getElementById('dp-name').textContent = site.name;
+  document.getElementById('dp-name-sub').textContent = site.unit;
+  const tag = document.getElementById('dp-tag');
+  tag.className = 'tag-hvgp';
+  tag.querySelector('.tag-dot').style.background = '#b060ff';
+  document.getElementById('dp-tag-text').textContent = 'HVGP 高速滑翔弹';
+
+  const isBlock2 = site.block.includes('Block 2');
+  let rangeHtml = '';
+  if (!isBlock2) {
+    rangeHtml = `<tr><td>射程（Block 1）</td><td><span style="color:#b060ff;font-weight:bold">约900km</span>（实线圈）</td></tr>
+      <tr><td>射程（Block 2A）</td><td><span style="color:#d090ff">约2000km</span>（研发中）</td></tr>
+      <tr><td>射程（Block 2B）</td><td><span style="color:#e8c0ff">约3000km</span>（计划中）</td></tr>`;
+  } else {
+    rangeHtml = `<tr><td>射程（Block 2A）</td><td><span style="color:#d090ff;font-weight:bold">约2000km</span>（虚线圈）</td></tr>
+      <tr><td>射程（Block 2B）</td><td><span style="color:#e8c0ff;font-weight:bold">约3000km</span>（点线圈）</td></tr>`;
+  }
+
+  const statusColor = site.status === '已部署' ? '#3dba6e' : (site.status.includes('2026') ? '#d4a030' : '#9060c8');
+
+  const html = `<div class="dp-section">
+    <div class="dp-sec-title">地理坐标</div>
+    <div class="coord-row">
+      <div class="coord-box"><div class="coord-lbl">LAT</div><div class="coord-val">${site.lat.toFixed(4)}°N</div></div>
+      <div class="coord-box"><div class="coord-lbl">LNG</div><div class="coord-val">${site.lng.toFixed(4)}°E</div></div>
+    </div>
+    <div class="map-btns">
+      <a class="map-btn gmap" href="https://www.google.com/maps?q=${site.lat},${site.lng}" target="_blank">🗺 Google Maps</a>
+      <a class="map-btn osm" href="https://www.openstreetmap.org/?mlat=${site.lat}&mlon=${site.lng}&zoom=12" target="_blank">🌐 OpenStreetMap</a>
+    </div>
+  </div>
+  <div class="dp-section">
+    <div class="dp-sec-title">HVGP 导弹情报</div>
+    <table class="info-tbl">
+      <tr><td>驻屯地</td><td>${site.name}</td></tr>
+      <tr><td>部队</td><td>${site.unit}</td></tr>
+      <tr><td>导弹型号</td><td>25式高速滑空弹（HVGP）${site.block}</td></tr>
+      ${rangeHtml}
+      <tr><td>飞行速度</td><td>Block 1: 约高超音速 · Block 2: 超过12马赫</td></tr>
+      <tr><td>发射方式</td><td>车载固体火箭助推，滑翔体分离后高超音速滑翔</td></tr>
+      <tr><td>部署状态</td><td><span style="color:${statusColor};font-weight:bold">${site.status}</span></td></tr>
+      <tr><td>部署时间</td><td>${site.deploy_date}</td></tr>
+      <tr><td>备注</td><td>${site.note}</td></tr>
+    </table>
+  </div>`;
+
+  document.getElementById('dp-body').innerHTML = html;
+  document.getElementById('detail-panel').classList.add('visible');
+  map.flyTo([site.lat, site.lng], Math.max(map.getZoom(), 5), { duration: 0.7 });
+}
+
+// ========== 射程同心圆图层 ==========
+function toggleRange(type) {
+  rangeVisible[type] = !rangeVisible[type];
+  const btn = document.getElementById(`btn-${type === 'ssm25' ? 'ssm25' : 'tomahawk'}`);
+  const legend = document.getElementById(`${type === 'ssm25' ? 'ssm25' : 'tomahawk'}-legend`);
+  btn.classList.toggle('active', rangeVisible[type]);
+  legend.classList.toggle('visible', rangeVisible[type]);
+
+  if (rangeVisible[type]) {
+    renderRangeCircles(type);
+  } else {
+    if (rangeCircles[type]) {
+      rangeCircles[type].forEach(l => map.removeLayer(l));
+      rangeCircles[type] = null;
+    }
+  }
+}
+
+function renderRangeCircles(type) {
+  if (rangeCircles[type]) rangeCircles[type].forEach(l => map.removeLayer(l));
+  rangeCircles[type] = [];
+
+  if (type === 'ssm25') {
+    SSM25_SITES.forEach(site => {
+      const isDeployed = site.status === '已部署';
+      // 1000km 实线圆（橙色）
+      const c1 = L.circle([site.lat, site.lng], {
+        radius: 1000000,
+        color: '#ff6600',
+        weight: isDeployed ? 2 : 1.5,
+        opacity: isDeployed ? 0.85 : 0.55,
+        fillColor: '#ff6600',
+        fillOpacity: 0.04,
+        dashArray: null
+      }).addTo(map);
+      c1.bindTooltip(`<b>${site.name}</b><br>25式 · 1000km射程圈<br>${site.status}`, { sticky: true, className: 'range-tooltip' });
+      c1.on('click', () => showRangeDetail(site, 'ssm25'));
+      rangeCircles[type].push(c1);
+
+      // 1500km 虚线圆（黄色）
+      const c2 = L.circle([site.lat, site.lng], {
+        radius: 1500000,
+        color: '#ffaa00',
+        weight: 1.5,
+        opacity: isDeployed ? 0.7 : 0.45,
+        fillColor: '#ffaa00',
+        fillOpacity: 0.02,
+        dashArray: '8 6'
+      }).addTo(map);
+      c2.bindTooltip(`<b>${site.name}</b><br>25式 · 1500km目标射程圈<br>${site.status}`, { sticky: true, className: 'range-tooltip' });
+      c2.on('click', () => showRangeDetail(site, 'ssm25'));
+      rangeCircles[type].push(c2);
+
+      // 中心标记
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:14px;height:14px;background:#ff6600;border-radius:50%;border:2px solid #fff;box-shadow:0 0 10px #ff6600;position:relative">
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;border:1.5px solid rgba(255,102,0,0.6);margin:-4px"></div>
+        </div>`,
+        iconSize: [14, 14], iconAnchor: [7, 7]
+      });
+      const m = L.marker([site.lat, site.lng], { icon, zIndexOffset: 1100 });
+      m.on('click', () => showRangeDetail(site, 'ssm25'));
+      m.addTo(map);
+      rangeCircles[type].push(m);
+    });
+
+  } else if (type === 'tomahawk') {
+    TOMAHAWK_BASES.forEach(base => {
+      // 1600km 实线圆（青蓝色）
+      const c = L.circle([base.lat, base.lng], {
+        radius: 1600000,
+        color: '#00cfff',
+        weight: 2,
+        opacity: 0.8,
+        fillColor: '#00cfff',
+        fillOpacity: 0.04,
+        dashArray: null
+      }).addTo(map);
+      c.bindTooltip(`<b>${base.name}</b><br>战斧 RGM-109 · 1600km射程圈`, { sticky: true, className: 'range-tooltip' });
+      c.on('click', () => showRangeDetail(base, 'tomahawk'));
+      rangeCircles[type].push(c);
+
+      // 中心标记
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:16px;height:16px;background:#00cfff;border-radius:50%;border:2px solid #fff;box-shadow:0 0 12px #00cfff;position:relative">
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;border:1.5px solid rgba(0,207,255,0.5);margin:-5px"></div>
+        </div>`,
+        iconSize: [16, 16], iconAnchor: [8, 8]
+      });
+      const m = L.marker([base.lat, base.lng], { icon, zIndexOffset: 1100 });
+      m.on('click', () => showRangeDetail(base, 'tomahawk'));
+      m.addTo(map);
+      rangeCircles[type].push(m);
+    });
+  }
+}
+
+function showRangeDetail(site, type) {
+  if (type === 'ssm25') {
+    document.getElementById('dp-name').textContent = site.name;
+    document.getElementById('dp-name-sub').textContent = site.regiment;
+    const tag = document.getElementById('dp-tag');
+    tag.className = 'tag-ssm25';
+    tag.querySelector('.tag-dot').style.background = '#ff6600';
+    document.getElementById('dp-tag-text').textContent = '25式地对舰导弹';
+
+    let html = `<div class="dp-section">
+      <div class="dp-sec-title">地理坐标</div>
+      <div class="coord-row">
+        <div class="coord-box"><div class="coord-lbl">LAT</div><div class="coord-val">${site.lat.toFixed(4)}°N</div></div>
+        <div class="coord-box"><div class="coord-lbl">LNG</div><div class="coord-val">${site.lng.toFixed(4)}°E</div></div>
+      </div>
+      <div class="map-btns">
+        <a class="map-btn gmap" href="https://www.google.com/maps?q=${site.lat},${site.lng}" target="_blank">🗺 Google Maps</a>
+        <a class="map-btn osm" href="https://www.openstreetmap.org/?mlat=${site.lat}&mlon=${site.lng}&zoom=12" target="_blank">🌐 OpenStreetMap</a>
+      </div>
+    </div>`;
+
+    html += `<div class="dp-section">
+      <div class="dp-sec-title">导弹部署情报</div>
+      <table class="info-tbl">
+        <tr><td>驻屯地</td><td>${site.name}</td></tr>
+        <tr><td>连队番号</td><td>${site.regiment}</td></tr>
+        <tr><td>导弹型号</td><td>25式地对舰诱导弹（12式能力提升型）</td></tr>
+        <tr><td>现役射程</td><td><span style="color:#ff6600;font-weight:bold">约1000km</span>（Block I）</td></tr>
+        <tr><td>目标射程</td><td><span style="color:#ffaa00;font-weight:bold">约1500km</span>（Block II，研发中）</td></tr>
+        <tr><td>发射方式</td><td>车载机动发射 · 潜射型 · 空射型（研发中）</td></tr>
+        <tr><td>部署状态</td><td><span style="color:${site.status === '已部署' ? '#3dba6e' : '#d4a030'}">${site.status}</span></td></tr>
+        <tr><td>备注</td><td>${site.note}</td></tr>
+      </table>
+    </div>`;
+
+    document.getElementById('dp-body').innerHTML = html;
+    document.getElementById('detail-panel').classList.add('visible');
+    map.flyTo([site.lat, site.lng], Math.max(map.getZoom(), 5), { duration: 0.7 });
+
+  } else if (type === 'tomahawk') {
+    document.getElementById('dp-name').textContent = site.name;
+    document.getElementById('dp-name-sub').textContent = site.port + '基地';
+    const tag = document.getElementById('dp-tag');
+    tag.className = 'tag-tomahawk';
+    tag.querySelector('.tag-dot').style.background = '#00cfff';
+    document.getElementById('dp-tag-text').textContent = '战斧导弹母港';
+
+    let html = `<div class="dp-section">
+      <div class="dp-sec-title">地理坐标</div>
+      <div class="coord-row">
+        <div class="coord-box"><div class="coord-lbl">LAT</div><div class="coord-val">${site.lat.toFixed(4)}°N</div></div>
+        <div class="coord-box"><div class="coord-lbl">LNG</div><div class="coord-val">${site.lng.toFixed(4)}°E</div></div>
+      </div>
+      <div class="map-btns">
+        <a class="map-btn gmap" href="https://www.google.com/maps?q=${site.lat},${site.lng}" target="_blank">🗺 Google Maps</a>
+        <a class="map-btn osm" href="https://www.openstreetmap.org/?mlat=${site.lat}&mlon=${site.lng}&zoom=12" target="_blank">🌐 OpenStreetMap</a>
+      </div>
+    </div>`;
+
+    html += `<div class="dp-section">
+      <div class="dp-sec-title">战斧导弹部署情报</div>
+      <table class="info-tbl">
+        <tr><td>母港</td><td>${site.port}基地</td></tr>
+        <tr><td>导弹型号</td><td>RGM-109 Tomahawk Block IV / Block V</td></tr>
+        <tr><td>射程</td><td><span style="color:#00cfff;font-weight:bold">约1600km</span></td></tr>
+        <tr><td>发射平台</td><td>宙斯盾驱逐舰 MK-41 VLS</td></tr>
+        <tr><td>配备舰艇</td><td>${site.ships}</td></tr>
+        <tr><td>备注</td><td>${site.note}</td></tr>
+      </table>
+    </div>`;
+
+    document.getElementById('dp-body').innerHTML = html;
+    document.getElementById('detail-panel').classList.add('visible');
+    map.flyTo([site.lat, site.lng], Math.max(map.getZoom(), 6), { duration: 0.7 });
+  }
+}
+
+// ========== INIT ==========
+async function init() {
+  try {
+    const resp = await fetch('data.json');
+    allData = await resp.json();
+
+    const s = allData.stats;
+    document.getElementById('cnt-missile').textContent = s.MISSILE || 0;
+    document.getElementById('cnt-radar').textContent   = s.RADAR   || 0;
+    document.getElementById('cnt-nuclear').textContent = s.NUCLEAR || 0;
+
+    initMap();
+    loadAllMarkers();
+    injectSSM12Animation();
+
+    setTimeout(() => {
+      document.getElementById('loading').style.display = 'none';
+    }, 700);
+  } catch(e) {
+    document.getElementById('loading').innerHTML =
+      '<div style="color:#e05555;font-family:\'Noto Serif SC\',serif;font-size:14px">数据加载失败</div>';
+  }
+}
+
+// ========== MAP ==========
+function initMap() {
+  map = L.map('map', {
+    center: [36.5, 136.0],
+    zoom: 6,
+    zoomControl: true,
+    attributionControl: true
+  });
+
+  // Dark base
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd', maxZoom: 19
+  }).addTo(map);
+
+  // Label overlay
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
+    attribution: '', subdomains: 'abcd', maxZoom: 19, opacity: 0.5
+  }).addTo(map);
+
+  map.zoomControl.setPosition('bottomright');
+}
+
+// ========== MARKERS ==========
+function createMarkerIcon(category) {
+  const cfg = CAT[category] || { color: '#888' };
+  // 参考图：全部圆形标记，大小统一
+  const size = (category === 'MISSILE' || category === 'NUCLEAR') ? 12 : 10;
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:${size}px; height:${size}px;
+      background:${cfg.color};
+      border-radius:50%;
+      border: 1.5px solid rgba(255,255,255,0.35);
+      box-shadow: 0 0 4px ${cfg.color}bb;
+      cursor:pointer;
+    "></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2],
+  });
+}
+
+function loadAllMarkers() {
+  allMarkers.forEach(m => map.removeLayer(m.marker));
+  allMarkers = [];
+
+  const all = [
+    ...allData.bases.map(b => ({ ...b, isSpecial: false })),
+    ...allData.special_facilities.map(f => ({ ...f, isSpecial: true }))
+  ];
+
+  all.forEach(item => {
+    if (!item.lat || !item.lng) return;
+    const marker = L.marker([item.lat, item.lng], {
+      icon: createMarkerIcon(item.category),
+      title: item.name
+    });
+    marker.on('click', () => showDetail(item));
+    allMarkers.push({ marker, item, category: item.category });
+    marker.addTo(map);
+  });
+
+  updateCount();
+}
+
+// ========== FILTER ==========
+function filterCategory(cat) {
+  currentFilter = cat;
+
+  document.querySelectorAll('.fp-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.hd-stat').forEach(b => b.classList.remove('active'));
+
+  const clsMap = { ALL:'fb-all', USFJ:'fb-usfj', JGSDF:'fb-jgsdf', JMSDF:'fb-jmsdf',
+                   JASDF:'fb-jasdf', MISSILE:'fb-missile', RADAR:'fb-radar', NUCLEAR:'fb-nuclear' };
+  const hdMap  = { USFJ:'s-usfj', JGSDF:'s-jgsdf', JMSDF:'s-jmsdf', JASDF:'s-jasdf', ALL:'s-total' };
+
+  const bc = clsMap[cat]; if (bc) document.querySelector(`.${bc}`)?.classList.add('active');
+  const hc = hdMap[cat];  if (hc) document.querySelector(`.${hc}`)?.classList.add('active');
+
+  let count = 0;
+  allMarkers.forEach(({ marker, category }) => {
+    if (cat === 'ALL' || category === cat) { marker.addTo(map); count++; }
+    else map.removeLayer(marker);
+  });
+
+  document.getElementById('stat-display').textContent = count;
+  document.getElementById('disp-count').textContent   = `${count} 显示中`;
+}
+
+function updateCount() {
+  const count = allMarkers.filter(m => map.hasLayer(m.marker)).length;
+  document.getElementById('stat-display').textContent = count;
+  document.getElementById('disp-count').textContent   = `${count} 显示中`;
+}
+
+// ========== DETAIL ==========
+function showDetail(item) {
+  const cfg = CAT[item.category] || { color: '#888', label: item.category };
+
+  document.getElementById('dp-name').textContent = item.name;
+  document.getElementById('dp-name-sub').textContent = item.name;
+
+  const tag = document.getElementById('dp-tag');
+  tag.className = `tag-${item.category.toLowerCase()}`;
+  tag.querySelector('.tag-dot').style.background = cfg.color;
+  document.getElementById('dp-tag-text').textContent = cfg.label;
+
+  let html = '';
+
+  // 坐标
+  if (item.lat && item.lng) {
+    html += `<div class="dp-section">
+      <div class="dp-sec-title">地理坐标</div>
+      <div class="coord-row">
+        <div class="coord-box">
+          <div class="coord-lbl">LAT</div>
+          <div class="coord-val">${item.lat.toFixed(6)}°N</div>
+        </div>
+        <div class="coord-box">
+          <div class="coord-lbl">LNG</div>
+          <div class="coord-val">${item.lng.toFixed(6)}°E</div>
+        </div>
+      </div>`;
+    if (item.coord_source) {
+      html += `<div class="coord-src">坐标来源：${item.coord_source}</div>`;
+    }
+    html += `<div class="map-btns">
+        <a class="map-btn gmap" href="https://www.google.com/maps?q=${item.lat},${item.lng}" target="_blank">🗺 Google Maps</a>
+        <a class="map-btn osm"  href="https://www.openstreetmap.org/?mlat=${item.lat}&mlon=${item.lng}&zoom=14" target="_blank">🌐 OpenStreetMap</a>
+      </div>
+    </div>`;
+  }
+
+  // 情报
+  const fields = [];
+  if (item.location)    fields.push(['所在地',   item.location]);
+  if (item.function)    fields.push(['主要功能', item.function]);
+  if (item.troops)      fields.push(['驻军数量', item.troops]);
+  if (item.unit)        fields.push(['驻军类型', item.unit]);
+  if (item.mission)     fields.push(['主要任务', item.mission]);
+  if (item.equipment)   fields.push(['装备',     item.equipment]);
+  if (item.status)      fields.push(['运营状态', item.status]);
+  if (item.subcategory) fields.push(['设施类型', item.subcategory]);
+
+  if (fields.length > 0) {
+    html += `<div class="dp-section">
+      <div class="dp-sec-title">基地情报</div>
+      <table class="info-tbl">`;
+    fields.forEach(([k, v]) => {
+      html += `<tr><td>${k}</td><td>${v}</td></tr>`;
+    });
+    html += `</table></div>`;
+  }
+
+  // 参考资料
+  const refs = item.refs || [];
+  if (refs.length > 0) {
+    html += `<div class="dp-section">
+      <div class="dp-sec-title">参考资料</div>`;
+    refs.slice(0, 5).forEach(ref => {
+      const url = ref.startsWith('http') ? ref : `https://${ref}`;
+      const disp = ref.replace(/https?:\/\//, '').substring(0, 55) + (ref.length > 55 ? '…' : '');
+      html += `<a class="ref-a" href="${url}" target="_blank">${disp}</a>`;
+    });
+    html += `</div>`;
+  }
+
+  document.getElementById('dp-body').innerHTML = html;
+  document.getElementById('detail-panel').classList.add('visible');
+
+  if (item.lat && item.lng) {
+    map.flyTo([item.lat, item.lng], Math.max(map.getZoom(), 10), { duration: 0.7 });
+  }
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('visible');
+}
+
+// ========== PANEL TOGGLE ==========
+function togglePanel() {
+  const body   = document.getElementById('lp-body');
+  const toggle = document.getElementById('lp-toggle');
+  const hint   = document.getElementById('lp-hint');
+  const hidden = body.style.display === 'none';
+  body.style.display   = hidden ? '' : 'none';
+  hint.style.display   = hidden ? '' : 'none';
+  toggle.classList.toggle('closed', !hidden);
+}
+
+// ========== SEARCH ==========
+function openSearch() {
+  document.getElementById('search-overlay').classList.add('visible');
+  document.getElementById('search-input').focus();
+  doSearch('');
+}
+function closeSearch() {
+  document.getElementById('search-overlay').classList.remove('visible');
+  document.getElementById('search-input').value = '';
+}
+function closeSearchOnBg(e) {
+  if (e.target === document.getElementById('search-overlay')) closeSearch();
+}
+function doSearch(q) {
+  if (!allData) return;
+  q = q.toLowerCase().trim();
+  const all = [
+    ...allData.bases.map(b => ({ ...b })),
+    ...allData.special_facilities.map(f => ({ ...f }))
+  ];
+  const res = q === '' ? all.slice(0, 30) : all.filter(item =>
+    (item.name     || '').toLowerCase().includes(q) ||
+    (item.location || '').toLowerCase().includes(q) ||
+    (item.function || '').toLowerCase().includes(q) ||
+    (item.unit     || '').toLowerCase().includes(q)
+  ).slice(0, 50);
+
+  const container = document.getElementById('search-results');
+  if (res.length === 0) {
+    container.innerHTML = '<div class="sr-empty">未找到匹配的设施</div>';
+    return;
+  }
+  container.innerHTML = res.map(item => {
+    const color = CAT[item.category]?.color || '#888';
+    const label = CAT[item.category]?.label || item.category;
+    return `<div class="sr-item" onclick='selectSR(${JSON.stringify(item).replace(/'/g,"&#39;")})'>
+      <div class="sr-dot" style="background:${color}"></div>
+      <div class="sr-name">${item.name}</div>
+      <div class="sr-cat">${label}</div>
+    </div>`;
+  }).join('');
+}
+function selectSR(item) {
+  closeSearch();
+  showDetail(item);
+  filterCategory('ALL');
+}
+
+// 注入12式脉冲动画CSS
+function injectSSM12Animation() {
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes ssm12pulse {
+      0%   { transform: scale(0.6); opacity: 1; }
+      70%  { transform: scale(2.0); opacity: 0.2; }
+      100% { transform: scale(2.4); opacity: 0; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeSearch(); closeDetail(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); openSearch(); }
+});
+
+init();
+</script>
+</body>
+</html>
