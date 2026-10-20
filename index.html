@@ -1366,15 +1366,15 @@ function initMap() {
     attributionControl: true
   });
 
-  // Dark base
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains: 'abcd', maxZoom: 19
+  // Dark base — Esri World Dark Gray Canvas（免 API key：CARTO 已对无 key 请求返回 API KEY REQUIRED 水印瓦片）
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> — Esri, DeLorme, NAVTEQ',
+    maxZoom: 16
   }).addTo(map);
 
   // Label overlay
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
-    attribution: '', subdomains: 'abcd', maxZoom: 19, opacity: 0.5
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '', maxZoom: 16, opacity: 0.85
   }).addTo(map);
 
   map.zoomControl.setPosition('bottomright');
